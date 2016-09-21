@@ -53,7 +53,7 @@ class PMF(GenModel):
             prob_K = self.Theta_DK[d] * self.Phi_KV[:, v]
             prob_K /= prob_K.sum()
             self.Y_DVK[d, v, :] = rn.multinomial(self.data[d, v], prob_K)
-        # self._cache_Y_DVK(), 
+        # self._cache_Y_DVK(),
 
     def _cache_Y_DVK(self):
         self.Y_DK[:] = self.Y_DVK.sum(axis=1)

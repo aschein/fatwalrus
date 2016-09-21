@@ -1,15 +1,17 @@
-from setuptools import setup, find_packages
+import os
+import numpy as np
+from setuptools import setup
+from Cython.Build import cythonize
 
-setup(
-    name='fat-walrus',
-    version='0.0.1',
-    author='Aaron Schein',
-    author_email='aaron.j.schein@gmail.com',
-    description=('A Python class for generative models'),
-    license='None yet',
-    keywords='walrus leopard seal sea lion aquatic mammal fat',
-    url='https://github.com/aschein/fat-walrus',
-    packages=find_packages(),
-    install_requires = ['numpy', 'scipy', 'matplotlib', 'seaborn'],
-    tests_require = ['nose'],
-)
+# os.environ["CC"] = "g++-5"
+# os.environ["CXX"] = "g++-5"
+
+setup(name='fatwalrus',
+      version='1.0',
+      description='Code for laying out on the beach all day with the homies.',
+      author='Aaron Schein',
+      packages=['fatwalrus'],
+      install_requires=[],
+      include_dirs=[np.get_include(),
+                    os.path.expanduser('~/anaconda/include/')],
+      ext_modules=cythonize(['fatwalrus/**/*.pyx']))
