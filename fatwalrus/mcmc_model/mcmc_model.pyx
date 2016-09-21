@@ -14,7 +14,7 @@ cimport numpy as np
 import scipy.stats as st
 from numpy.random import randint
 from pp_plot import pp_plot
-
+from copy import deepcopy
 
 cdef class MCMCModel:
 
@@ -56,7 +56,7 @@ cdef class MCMCModel:
             else:
                 yield k, np.array(v)
 
-    cdef void _generate_state(self, list vars_to_fix=[]):
+    cdef void _generate_state(self):
         """
         Generate internal state.
         """
@@ -111,82 +111,91 @@ cdef class MCMCModel:
                     int num_samples,
                     str method='geweke',
                     dict var_funcs={},
-                    list vars_to_fix=[]):
+                    dict burnin={}):
         """
         Perform Geweke testing or Schein testing.
         """
 
         cdef:
             int n
-            dict default_funcs, burnin, fwd, rev
+            dict default_funcs, fwd, rev
 
         default_funcs = {'Arith. Mean': np.mean,
                          'Geom. Mean': lambda x: np.exp(np.mean(np.log1p(x))),
                          'Var.': np.var,
                          'Max.': np.max}
 
-        fwd, rev, burnin = {}, {}, {}
+        fwd, rev = {}, {}
+        var_funcs = deepcopy(var_funcs)  # this method changes var_funcs state
         for k, v, _ in self._get_variables():
-
-            if k in vars_to_fix:
-                burnin[k] = np.inf
-            else:
+            
+            if k not in burnin.keys():
                 burnin[k] = 0
+            
+            if burnin[k] > num_samples:
+                if k in var_funcs.keys():
+                    del var_funcs[k]
+                continue
 
-                if k not in var_funcs.keys():
-                    var_funcs[k] = default_funcs
-                assert len(var_funcs[k].keys()) <= 4
+            if k not in var_funcs.keys():
+                var_funcs[k] = default_funcs
+            assert len(var_funcs[k].keys()) <= 4
 
-                if np.isscalar(v):
-                    fwd[k] = np.empty(num_samples)
-                    rev[k] = np.empty(num_samples)
-                else:
-                    fwd[k] = {}
-                    rev[k] = {}
-                    for f in var_funcs[k]:
-                        fwd[k][f] = np.empty(num_samples)
-                        rev[k][f] = np.empty(num_samples)
+            if np.isscalar(v):
+                fwd[k] = np.empty(num_samples)
+                rev[k] = np.empty(num_samples)
+            else:
+                fwd[k] = {}
+                rev[k] = {}
+                for f in var_funcs[k]:
+                    fwd[k][f] = np.empty(num_samples)
+                    rev[k][f] = np.empty(num_samples)
 
         if method == 'schein':
             self._init_state()
             for n in range(num_samples):
-                self._generate_state(vars_to_fix=vars_to_fix)
+                self._generate_state()
                 self._generate_data()
-                self._calc_funcs(var_funcs, n, fwd)
+                self._calc_funcs(n, var_funcs, fwd)
 
-                self._update(5, 0, burnin)
+                self._update(10, 0, burnin)
                 self._generate_data()
-                self._calc_funcs(var_funcs, n, rev)
+                self._calc_funcs(n, var_funcs, rev)
 
                 if n % 500 == 0:
                     print n
         else:
             self._init_state()
             for n in range(num_samples):
-                self._generate_state(vars_to_fix=vars_to_fix)
+                self._generate_state()
                 self._generate_data()
-                self._calc_funcs(var_funcs, n, fwd)
+                self._calc_funcs(n, var_funcs, fwd)
                 if n % 500 == 0:
                     print n
 
-            self._generate_state(vars_to_fix=vars_to_fix)
+            self._generate_state()
             for n in range(num_samples):
                 self._generate_data()
                 self._update(10, 0, burnin)
-                self._calc_funcs(var_funcs, n, rev)
+                self._calc_funcs(n, var_funcs, rev)
                 if n % 500 == 0:
                     print n
 
         for k, _, _ in self._get_variables():
-            if k not in vars_to_fix:
+            if not burnin[k] > num_samples:
                 pp_plot(fwd[k], rev[k], k)
 
-    cdef void _calc_funcs(self, dict var_funcs, int n, dict out):
+    cdef void _calc_funcs(self,
+                          int n,
+                          dict var_funcs,
+                          dict out):
         """
         Helper function for _test. Calculates and stores functions of variables.
         """
 
         for k, v, _ in self._get_variables():
+            if k not in var_funcs.keys():
+                continue
             if np.isscalar(v):
                 out[k][n] = v
             else:
@@ -196,23 +205,23 @@ cdef class MCMCModel:
     cpdef void geweke(self,
                       int num_samples,
                       dict var_funcs={},
-                      list vars_to_fix=[]):
+                      dict burnin={}):
         """
         Wrapper around _test(...).
         """
         self._test(num_samples=num_samples,
                    method='geweke',
                    var_funcs=var_funcs,
-                   vars_to_fix=vars_to_fix)
+                   burnin=burnin)
 
     cpdef void schein(self,
                       int num_samples,
                       dict var_funcs={},
-                      list vars_to_fix=[]):
+                      dict burnin={}):
         """
         Wrapper around _test(...).
         """
         self._test(num_samples=num_samples,
                    method='schein',
                    var_funcs=var_funcs,
-                   vars_to_fix=vars_to_fix)
+                   burnin=burnin)

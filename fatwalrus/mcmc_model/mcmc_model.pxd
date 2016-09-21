@@ -24,7 +24,7 @@ cdef class MCMCModel:
     cdef:
         gsl_rng *rng
     cdef list _get_variables(self)
-    cdef void _generate_state(self, list vars_to_fix=?)
+    cdef void _generate_state(self)
     cdef void _generate_data(self)
     cdef void _init_state(self)
     cdef void _print_state(self)
@@ -34,13 +34,7 @@ cdef class MCMCModel:
                     int num_samples,
                     str method=?,
                     dict var_funcs=?,
-                    list vars_to_fix=?)
-    cdef void _calc_funcs(self, dict var_funcs, int n, dict out)
-    cpdef void geweke(self,
-                      int num_samples,
-                      dict var_funcs=?,
-                      list vars_to_fix=?)
-    cpdef void schein(self,
-                      int num_samples,
-                      dict var_funcs=?,
-                      list vars_to_fix=?)
+                    dict burnin=?)
+    cdef void _calc_funcs(self, int n, dict var_funcs, dict out)
+    cpdef void geweke(self, int num_samples, dict var_funcs=?, dict burnin=?)
+    cpdef void schein(self, int num_samples, dict var_funcs=?, dict burnin=?)
