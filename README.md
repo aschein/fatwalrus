@@ -1,2 +1,2 @@
 # fatwalrus
-Code for laying out on rock all day with the homies.
+Code for laying out on the rocks all day with the homies.
