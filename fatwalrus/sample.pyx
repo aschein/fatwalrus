@@ -37,6 +37,12 @@ cdef class Sampler:
     cpdef double gamma(self, double a, double b):
         return _sample_gamma(self.rng, a, b)
 
+    cpdef double gamma_small_shape(self, double a, double b):
+        return _sample_gamma_small_shape(self.rng, a, b)
+
+    cpdef double lngamma_small_shape(self, double a, double b):
+        return _sample_lngamma_small_shape(self.rng, a, b)
+
     cpdef double beta(self, double a, double b):
         return _sample_beta(self.rng, a, b)
 

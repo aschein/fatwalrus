@@ -59,6 +59,40 @@ cdef inline double _sample_gamma(gsl_rng * rng, double a, double b) nogil:
 
     return out
 
+cdef inline double _sample_lngamma_small_shape(gsl_rng * rng, double a, double b) nogil:
+    """
+    Implements the algorithm described by Liu, Martin and Syring (2015) for 
+    simulating Gamma random variates with small shape parameters (a << 1).
+
+    Arguments:
+        rng -- Pointer to a GSL random number generator object
+        a -- Shape parameter (a > 0)
+        b -- Scale parameter (b > 0)
+    """
+    cdef: 
+        double lam, w, r, u, z, h, nu, c
+
+    w = a / (M_E * (1 - a))
+    c = 1. / tgamma(a + 1)
+    lam = 1. / a - 1.
+
+    while 1:
+        u = gsl_rng_uniform(rng)
+        if u <= r:
+            z = -log(u / r)
+        else:
+            z = log(gsl_rng_uniform(rng)) / lam
+        h = c * exp(-z - exp(-z / a))
+        if z >= 0:
+            nu = c * exp(-z)
+        else:
+            nu = c * w * lam * exp(lam * z)
+        if (h / nu) > gsl_rng_uniform(rng):
+            return -z / a
+
+cdef inline double _sample_gamma_small_shape(gsl_rng * rng, double a, double b) nogil:
+    return exp(_sample_lngamma_small_shape(rng, a, b))
+
 cdef inline void _sample_dirichlet(gsl_rng * rng,
                                    double[::1] alpha,
                                    double[::1] out) nogil:
@@ -397,6 +431,8 @@ cdef class Sampler:
         gsl_rng *rng
 
     cpdef double gamma(self, double a, double b)
+    cpdef double gamma_small_shape(self, double a, double b)
+    cpdef double lngamma_small_shape(self, double a, double b)
     cpdef double beta(self, double a, double b)
     cpdef void dirichlet(self, double[::1] alpha, double[::1] out)
     cpdef int categorical(self, double[::1] dist)
@@ -407,6 +443,7 @@ cdef class Sampler:
     cpdef int truncated_poisson(self, double mu)
     cpdef void multinomial(self, unsigned int N, double[::1] p, unsigned int[::1] out)
     cpdef int bessel(self, double v, double a)
+
     # cpdef void allocate_with_cdf(self,
     #                              int[:,::1] N_IJ,
     #                              double[:,::1] Theta_IK,
