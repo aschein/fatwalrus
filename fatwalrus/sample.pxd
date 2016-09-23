@@ -9,6 +9,7 @@
 #distutils: extra_compile_args = -Wno-unused-function -Wno-unneeded-internal-declaration
 
 cimport numpy as np
+from libc.math cimport log, log1p, exp, M_E, tgamma
 
 cdef extern from "gsl/gsl_rng.h" nogil:
     ctypedef struct gsl_rng_type:
@@ -31,38 +32,82 @@ cdef extern from "gsl/gsl_randist.h" nogil:
                              const double p[],
                              unsigned int n[])
 
-DEF MIN_GAMMA_SHAPE = 1e-5
-DEF MIN_GAMMA_SCALE = 1e-5
-DEF MIN_GAMMA_VALUE = 1e-300
-
 cdef inline double _sample_gamma(gsl_rng * rng, double a, double b) nogil:
     """
-    Wrapper for gsl_ran_gamma(...) that clips input and ouput.
+    Simulate a Gamma random variate.
+
+    When a is large, this is a thin wrapper to gsl_ran_gamma.
+    
+    When a is small, this calls _sample_ln_gamma_small_shape, and
+    exponentiates the result.
 
     Arguments:
         rng -- Pointer to a GSL random number generator object
         a -- Shape parameter (a > 0)
         b -- Scale parameter (b > 0)
     """
-    cdef: 
-        double out
+    if a > 0.75:
+        return gsl_ran_gamma(rng, a, b)
+    else:
+        return exp(_sample_lngamma_small_shape(rng, a, b))
 
-    if a < MIN_GAMMA_SHAPE:
-        a = MIN_GAMMA_SHAPE
+cdef inline double _sample_lngamma(gsl_rng * rng, double a, double b) nogil:
+    """
+    Simulate a log-Gamma random variate.
 
-    if b < MIN_GAMMA_SCALE:
-        b = MIN_GAMMA_SCALE
+    When a is large, this calls gsl_ran_gamma and returns the log of it.
+    
+    When a is small, this is a thin wrapper to _sample_ln_gamma_small_shape.
 
-    out = gsl_ran_gamma(rng, a, b)
-    if out < MIN_GAMMA_VALUE:
-        out = MIN_GAMMA_VALUE
+    Arguments:
+        rng -- Pointer to a GSL random number generator object
+        a -- Shape parameter (a > 0)
+        b -- Scale parameter (b > 0)
+    """
+    if a > 0.75:
+        return log(gsl_ran_gamma(rng, a, b))
+    else:
+        return _sample_lngamma_small_shape(rng, a, b)
 
-    return out
+# cdef inline double _sample_lngamma_small_shape(gsl_rng * rng, double a, double b) nogil:
+#     """
+#     Implements the algorithm described by Liu, Martin and Syring (2015) for 
+#     simulating Gamma random variates with small shape parameters (a < 1).
+
+#     Do not call this with a > 1 (the expected number of iterations is large).
+
+#     Arguments:
+#         rng -- Pointer to a GSL random number generator object
+#         a -- Shape parameter (a > 0)
+#         b -- Scale parameter (b > 0)
+#     """
+#     cdef: 
+#         double lam, w, r, u, z, h, eta
+
+#     lam = 1. / a - 1.
+#     w = a / (M_E * (1 - a))
+#     r = 1. / (1 + w)
+
+#     while 1:
+#         u = gsl_rng_uniform(rng)
+#         if u <= r:
+#             z = -log(u / r)
+#         else:
+#             z = log(gsl_rng_uniform(rng)) / lam
+#         h = exp(-z - exp(-z / a))
+#         if z >= 0:
+#             eta = exp(-z)
+#         else:
+#             eta = w * lam * exp(lam * z)
+#         if (h / eta) > gsl_rng_uniform(rng):
+#             return log(b) - z / a
 
 cdef inline double _sample_lngamma_small_shape(gsl_rng * rng, double a, double b) nogil:
     """
     Implements the algorithm described by Liu, Martin and Syring (2015) for 
-    simulating Gamma random variates with small shape parameters (a << 1).
+    simulating Gamma random variates with small shape parameters (a < 1).
+
+    Do not call this with a > 1 (the expected number of iterations is large).
 
     Arguments:
         rng -- Pointer to a GSL random number generator object
@@ -70,82 +115,31 @@ cdef inline double _sample_lngamma_small_shape(gsl_rng * rng, double a, double b
         b -- Scale parameter (b > 0)
     """
     cdef: 
-        double lam, w, r, u, z, h, nu, c
+        double lam, w, lnr, lnu, z, lnh, lneta
 
-    w = a / (M_E * (1 - a))
-    c = 1. / tgamma(a + 1)
     lam = 1. / a - 1.
+    lnw = log(a) - log1p(-a) - 1
+    lnr = -log1p(exp(lnw))
 
     while 1:
-        u = gsl_rng_uniform(rng)
-        if u <= r:
-            z = -log(u / r)
+        lnu = log(gsl_rng_uniform(rng))
+        if lnu <= lnr:
+            z = lnr - lnu
         else:
             z = log(gsl_rng_uniform(rng)) / lam
-        h = c * exp(-z - exp(-z / a))
+        
+        lnh = -z - exp(-z / a)
         if z >= 0:
-            nu = c * exp(-z)
+            lneta = -z
         else:
-            nu = c * w * lam * exp(lam * z)
-        if (h / nu) > gsl_rng_uniform(rng):
-            return -z / a
+            lneta = lnw + log(lam) + lam * z
 
-cdef inline double _sample_gamma_small_shape(gsl_rng * rng, double a, double b) nogil:
-    return exp(_sample_lngamma_small_shape(rng, a, b))
+        if (lnh - lneta) > log(gsl_rng_uniform(rng)):
+            return log(b) - z / a
 
-cdef inline void _sample_dirichlet(gsl_rng * rng,
-                                   double[::1] alpha,
-                                   double[::1] out) nogil:
+cdef inline double _sample_lnbeta(gsl_rng * rng, double a, double b) nogil:
     """
-    Sample an K-dimensional Dirichlet by sampling K Gamma random variates.
-
-    This method clips the input alpha parameters to MIN_GAMMA_SHAPE.
-
-    If all K sampled Gammas are equal to MIN_GAMMA_VALUE then a binary vector
-    is output using a call to _sample_categorical.
-
-    Arguments:
-        rng -- Pointer to a GSL random number generator object
-        alpha -- Concentration parameters (alpha[k] > 0 for k = 1...K)
-        out -- Output array (same size as alpha)
-    """
-    cdef:
-        int K, k, all_below_min
-        double a, g, sumkg 
-
-    K = alpha.shape[0]
-    if out.shape[0] != K:
-        out[0] = -1
-        return
-
-    all_below_min = 1
-    sumkg = 0 
-    for k in range(K):
-        g = _sample_gamma(rng, alpha[k], 1.)
-        out[k] = g
-        sumkg += g
-        if g > MIN_GAMMA_VALUE:
-            all_below_min = 0
-
-    if all_below_min == 1:
-        k = _sample_categorical(rng, alpha)
-        if k == -1:
-            out[0] = -1
-            sumkg = 1
-        else:
-            out[k] = 1
-            sumkg += 1 - MIN_GAMMA_VALUE
-
-    for k in range(K):
-        out[k] /= sumkg
-
-cdef inline double _sample_beta(gsl_rng * rng, double a, double b) nogil:
-    """
-    Sample a Beta by sampling 2 Gamma random variates.
-
-    This method clips the input alpha parameters to MIN_GAMMA_SHAPE.
-
-    If both sampled Gammas are equal to MIN_GAMMA_VALUE then output a Bernoulli. 
+    Sample a log-Beta by sampling 2 log-Gamma random variates.
 
     Arguments:
         rng -- Pointer to a GSL random number generator object
@@ -153,25 +147,83 @@ cdef inline double _sample_beta(gsl_rng * rng, double a, double b) nogil:
         b -- Second shape parameter (b > 0)
     """
     cdef:
-        double g1, g2, p, u
+        double lng1, lng2, c, lse
 
-    if a <= MIN_GAMMA_VALUE and b > MIN_GAMMA_VALUE:
-        return 0.
+    lng1 = _sample_lngamma(rng, a, 1.)
+    lng2 = _sample_lngamma(rng, b, 1.)
+    c = lng1 if lng1 > lng2 else lng2
+    lse = c + log(exp(lng1 - c) + exp(lng2 - c))  # logsumexp
 
-    if b <= MIN_GAMMA_VALUE and a > MIN_GAMMA_VALUE:
-        return 1.
+    return lng1 - lse
 
-    g1 = _sample_gamma(rng, a, 1.)
-    g2 = _sample_gamma(rng, b, 1.)
-    if g1 == MIN_GAMMA_VALUE and g2 == MIN_GAMMA_VALUE:
-        p = a / (a + b)
-        u = gsl_rng_uniform(rng)
-        if p > u:
-            return 1.
-        else:
-            return 0.
-    else:
-        return g1 / (g1 + g2)
+cdef inline double _sample_beta(gsl_rng * rng, double a, double b) nogil:
+    """
+    Sample a Beta by exponentiating a log-Beta.
+
+    Arguments:
+        rng -- Pointer to a GSL random number generator object
+        a -- First shape parameter (a > 0)
+        b -- Second shape parameter (b > 0)
+    """
+    return exp(_sample_lnbeta(rng, a, b))
+
+cdef inline void _sample_lndirichlet(gsl_rng * rng,
+                                     double[::1] alpha,
+                                     double[::1] out) nogil:
+    """
+    Sample a K-dimensional log-Dirichlet by sampling K log-Gamma random variates.
+
+    Arguments:
+        rng -- Pointer to a GSL random number generator object
+        alpha -- Concentration parameters (alpha[k] > 0 for k = 1...K)
+        out -- Output array (same size as alpha)
+    """
+    cdef:
+        int K, k
+        double c, lng, lse
+
+    K = alpha.shape[0]
+    if out.shape[0] != K:
+        out[0] = -1
+        return
+
+    c = out[0] = _sample_lngamma(rng, alpha[0], 1.)
+    for k in range(1, K):
+        out[k] = lng = _sample_lngamma(rng, alpha[k], 1.)
+        if lng > c:
+            c = lng
+
+    lse = 0  # logsumexp to compute the normalizer
+    for k in range(K):
+        lse += exp(out[k] - c)
+    lse = c + log(lse)
+
+    for k in range(K):
+        out[k] = out[k] - lse
+
+cdef inline void _sample_dirichlet(gsl_rng * rng,
+                                   double[::1] alpha,
+                                   double[::1] out) nogil:
+    """
+    Sample a K-dimensional Dirichlet by exponentiating a log-Dirichlet.
+
+    Arguments:
+        rng -- Pointer to a GSL random number generator object
+        alpha -- Concentration parameters (alpha[k] > 0 for k = 1...K)
+        out -- Output array (same size as alpha)
+    """
+    cdef:
+        int K, k
+
+    K = alpha.shape[0]
+    if out.shape[0] != K:
+        out[0] = -1
+        return
+
+    _sample_lndirichlet(rng, alpha, out)
+
+    for k in range(K):
+        out[k] = exp(out[k])
 
 cdef inline int _sample_categorical(gsl_rng * rng, double[::1] dist) nogil:
     """
@@ -361,66 +413,6 @@ cdef inline void _sample_multinomial(gsl_rng * rng,
     gsl_ran_multinomial(rng, K, N, &p[0], &out[0])
 
 
-# cdef inline void _allocate_and_count(gsl_rng * rng,
-#                                      int[:,::1] N_IJ,
-#                                      double[:,::1] Theta_IK,
-#                                      double[:,::1] Phi_KJ,
-#                                      int[:,::1] N_IK,
-#                                      int[:,::1] N_KJ,
-#                                      int mode):
-#     cdef: 
-#         size_t I, J, K
-#         int i, j, k
-#         unsigned int n_ij, n_ijk
-#         double norm
-#         double[::1] P_K
-#         unsigned int[::1] N_K
-
-#     I, J = N_IJ.shape[0], N_IJ.shape[1]
-#     K = Phi_KJ.shape[0]
-
-#     P_K = np.zeros(K)
-#     N_K = np.zeros(K, dtype=np.uint32)
-
-#     N_IK[:] = 0
-#     N_KJ[:] = 0
-
-#     with nogil:
-#         for i in range(I):
-#             for j in range(J):
-#                 n_ij = N_IJ[i, j]
-#                 if n_ij == 0:
-#                     continue
-
-#                 if mode == 0:  # cdf + searchsorted method (unnormalized)
-#                     P_K[0] = Theta_IK[i, 0] * Phi_KJ[0, j]
-#                     for k in range(1, K):
-#                         P_K[k] = P_K[k-1] + Theta_IK[i, k] * Phi_KJ[k, j]
-                    
-#                     norm = P_K[K-1]
-#                     for _ in range(n_ij):
-#                         k = _searchsorted(norm * gsl_rng_uniform(rng), P_K)
-#                         N_IK[i, k] += 1
-#                         N_KJ[k, j] += 1
-
-#                 else:  # conditional binomial method (via gsl_ran_multinomial)
-#                     norm = 0
-#                     for k in range(K):
-#                         P_K[k] = Theta_IK[i, k] * Phi_KJ[k, j]
-#                         norm += P_K[k]
-
-#                     for k in range(K):
-#                         P_K[k] /= norm
-
-#                     gsl_ran_multinomial(rng, K, n_ij, &P_K[0], &N_K[0])
-
-#                     for k in range(K):
-#                         n_ijk = N_K[k]
-#                         if n_ijk > 0:
-#                             N_IK[i, k] += n_ijk
-#                             N_KJ[k, j] += n_ijk
-    
-
 cdef class Sampler:
     """
     Wrapper for a gsl_rng object that exposes all sampling methods to Python.
@@ -431,10 +423,11 @@ cdef class Sampler:
         gsl_rng *rng
 
     cpdef double gamma(self, double a, double b)
-    cpdef double gamma_small_shape(self, double a, double b)
-    cpdef double lngamma_small_shape(self, double a, double b)
+    cpdef double lngamma(self, double a, double b)
     cpdef double beta(self, double a, double b)
+    cpdef double lnbeta(self, double a, double b)
     cpdef void dirichlet(self, double[::1] alpha, double[::1] out)
+    cpdef void lndirichlet(self, double[::1] alpha, double[::1] out)
     cpdef int categorical(self, double[::1] dist)
     cpdef int searchsorted(self, double val, double[::1] arr)
     cpdef int crt(self, int m, double r)
@@ -443,16 +436,3 @@ cdef class Sampler:
     cpdef int truncated_poisson(self, double mu)
     cpdef void multinomial(self, unsigned int N, double[::1] p, unsigned int[::1] out)
     cpdef int bessel(self, double v, double a)
-
-    # cpdef void allocate_with_cdf(self,
-    #                              int[:,::1] N_IJ,
-    #                              double[:,::1] Theta_IK,
-    #                              double[:,::1] Phi_KJ,
-    #                              int[:,::1] N_IK,
-    #                              int[:,::1] N_KJ)
-    # cpdef void allocate_with_mult(self,
-    #                               int[:,::1] N_IJ,
-    #                               double[:,::1] Theta_IK,
-    #                               double[:,::1] Phi_KJ,
-    #                               int[:,::1] N_IK,
-    #                               int[:,::1] N_KJ)

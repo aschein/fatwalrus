@@ -37,17 +37,20 @@ cdef class Sampler:
     cpdef double gamma(self, double a, double b):
         return _sample_gamma(self.rng, a, b)
 
-    cpdef double gamma_small_shape(self, double a, double b):
-        return _sample_gamma_small_shape(self.rng, a, b)
-
-    cpdef double lngamma_small_shape(self, double a, double b):
-        return _sample_lngamma_small_shape(self.rng, a, b)
+    cpdef double lngamma(self, double a, double b):
+        return _sample_lngamma(self.rng, a, b)
 
     cpdef double beta(self, double a, double b):
         return _sample_beta(self.rng, a, b)
 
+    cpdef double lnbeta(self, double a, double b):
+        return _sample_lnbeta(self.rng, a, b)
+
     cpdef void dirichlet(self, double[::1] alpha, double[::1] out):
         _sample_dirichlet(self.rng, alpha, out)
+
+    cpdef void lndirichlet(self, double[::1] alpha, double[::1] out):
+        _sample_lndirichlet(self.rng, alpha, out)
 
     cpdef int categorical(self, double[::1] dist):
         return _sample_categorical(self.rng, dist)
@@ -72,19 +75,3 @@ cdef class Sampler:
 
     cpdef int bessel(self, double v, double a):
         return _sample_bessel(self.rng, v, a)
-
-    # cpdef void allocate_with_cdf(self,
-    #                          int[:,::1] N_IJ,
-    #                          double[:,::1] Theta_IK,
-    #                          double[:,::1] Phi_KJ,
-    #                          int[:,::1] N_IK,
-    #                          int[:,::1] N_KJ):
-    #     _allocate_and_count(self.rng, N_IJ, Theta_IK, Phi_KJ, N_IK, N_KJ, 0)
-            
-    # cpdef void allocate_with_mult(self,
-    #                               int[:,::1] N_IJ,
-    #                               double[:,::1] Theta_IK,
-    #                               double[:,::1] Phi_KJ,
-    #                               int[:,::1] N_IK,
-    #                               int[:,::1] N_KJ):
-    #     _allocate_and_count(self.rng, N_IJ, Theta_IK, Phi_KJ, N_IK, N_KJ, 1)
