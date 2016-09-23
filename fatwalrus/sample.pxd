@@ -397,6 +397,9 @@ cdef inline void _sample_multinomial(gsl_rng * rng,
                                     unsigned int N,
                                     double[::1] p,
                                     unsigned int[::1] out) nogil:
+    """
+    Wrapper for gsl_ran_multinomial.
+    """
     cdef:
         size_t K
 
