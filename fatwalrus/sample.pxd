@@ -32,6 +32,8 @@ cdef extern from "gsl/gsl_randist.h" nogil:
                              const double p[],
                              unsigned int n[])
 
+DEF EPS = 1e-300
+
 cdef inline double _sample_gamma(gsl_rng * rng, double a, double b) nogil:
     """
     Simulate a Gamma random variate.
@@ -46,10 +48,17 @@ cdef inline double _sample_gamma(gsl_rng * rng, double a, double b) nogil:
         a -- Shape parameter (a > 0)
         b -- Scale parameter (b > 0)
     """
+    cdef double g
+
+    if a < EPS:
+        a = EPS
+
     if a > 0.75:
-        return gsl_ran_gamma(rng, a, b)
+        g = gsl_ran_gamma(rng, a, b)
     else:
-        return exp(_sample_lngamma_small_shape(rng, a, b))
+        g = exp(_sample_lngamma_small_shape(rng, a, b))
+    
+    return g if g > EPS else EPS
 
 cdef inline double _sample_lngamma(gsl_rng * rng, double a, double b) nogil:
     """
@@ -64,8 +73,14 @@ cdef inline double _sample_lngamma(gsl_rng * rng, double a, double b) nogil:
         a -- Shape parameter (a > 0)
         b -- Scale parameter (b > 0)
     """
+    cdef double g
+
+    if a < EPS:
+        a = EPS
+
     if a > 0.75:
-        return log(gsl_ran_gamma(rng, a, b))
+        g = gsl_ran_gamma(rng, a, b)
+        return log(g) if g > EPS else log(EPS)
     else:
         return _sample_lngamma_small_shape(rng, a, b)
 
