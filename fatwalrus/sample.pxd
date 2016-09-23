@@ -43,6 +43,9 @@ cdef inline double _sample_gamma(gsl_rng * rng, double a, double b) nogil:
     When a is small, this calls _sample_ln_gamma_small_shape, and
     exponentiates the result.
 
+    This method clips the shape parameter at EPS. 
+    It also clips the result at EPS: the result is always >= EPS.
+
     Arguments:
         rng -- Pointer to a GSL random number generator object
         a -- Shape parameter (a > 0)
@@ -68,6 +71,8 @@ cdef inline double _sample_lngamma(gsl_rng * rng, double a, double b) nogil:
     
     When a is small, this is a thin wrapper to _sample_ln_gamma_small_shape.
 
+    This method clips the shape parameter at EPS.
+
     Arguments:
         rng -- Pointer to a GSL random number generator object
         a -- Shape parameter (a > 0)
@@ -84,39 +89,6 @@ cdef inline double _sample_lngamma(gsl_rng * rng, double a, double b) nogil:
     else:
         return _sample_lngamma_small_shape(rng, a, b)
 
-# cdef inline double _sample_lngamma_small_shape(gsl_rng * rng, double a, double b) nogil:
-#     """
-#     Implements the algorithm described by Liu, Martin and Syring (2015) for 
-#     simulating Gamma random variates with small shape parameters (a < 1).
-
-#     Do not call this with a > 1 (the expected number of iterations is large).
-
-#     Arguments:
-#         rng -- Pointer to a GSL random number generator object
-#         a -- Shape parameter (a > 0)
-#         b -- Scale parameter (b > 0)
-#     """
-#     cdef: 
-#         double lam, w, r, u, z, h, eta
-
-#     lam = 1. / a - 1.
-#     w = a / (M_E * (1 - a))
-#     r = 1. / (1 + w)
-
-#     while 1:
-#         u = gsl_rng_uniform(rng)
-#         if u <= r:
-#             z = -log(u / r)
-#         else:
-#             z = log(gsl_rng_uniform(rng)) / lam
-#         h = exp(-z - exp(-z / a))
-#         if z >= 0:
-#             eta = exp(-z)
-#         else:
-#             eta = w * lam * exp(lam * z)
-#         if (h / eta) > gsl_rng_uniform(rng):
-#             return log(b) - z / a
-
 cdef inline double _sample_lngamma_small_shape(gsl_rng * rng, double a, double b) nogil:
     """
     Implements the algorithm described by Liu, Martin and Syring (2015) for 
@@ -128,6 +100,10 @@ cdef inline double _sample_lngamma_small_shape(gsl_rng * rng, double a, double b
         rng -- Pointer to a GSL random number generator object
         a -- Shape parameter (a > 0)
         b -- Scale parameter (b > 0)
+
+    References:
+    [1] C. Liu, R. Martin & N. Syring (2013).
+        Simulating from a gamma distribution with small shape parameter
     """
     cdef: 
         double lam, w, lnr, lnu, z, lnh, lneta
