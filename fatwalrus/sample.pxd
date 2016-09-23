@@ -89,7 +89,9 @@ cdef inline double _sample_lngamma(gsl_rng * rng, double a, double b) nogil:
     else:
         return _sample_lngamma_small_shape(rng, a, b)
 
-cdef inline double _sample_lngamma_small_shape(gsl_rng * rng, double a, double b) nogil:
+cdef inline double _sample_lngamma_small_shape(gsl_rng * rng,
+                                               double a,
+                                               double b) nogil:
     """
     Implements the algorithm described by Liu, Martin and Syring (2015) for 
     simulating Gamma random variates with small shape parameters (a < 1).
@@ -162,7 +164,7 @@ cdef inline void _sample_lndirichlet(gsl_rng * rng,
                                      double[::1] alpha,
                                      double[::1] out) nogil:
     """
-    Sample a K-dimensional log-Dirichlet by sampling K log-Gamma random variates.
+    Sample a K-dimensional log-Dirichlet by sampling K log-Gamma random variates
 
     Arguments:
         rng -- Pointer to a GSL random number generator object
@@ -428,5 +430,8 @@ cdef class Sampler:
     cpdef int sumcrt(self, int[::1] M, double[::1] R)
     cpdef int sumlog(self, int n, double p)
     cpdef int truncated_poisson(self, double mu)
-    cpdef void multinomial(self, unsigned int N, double[::1] p, unsigned int[::1] out)
+    cpdef void multinomial(self,
+                           unsigned int N,
+                           double[::1] p,
+                           unsigned int[::1] out)
     cpdef int bessel(self, double v, double a)
