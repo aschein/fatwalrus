@@ -1,13 +1,12 @@
-#!python
-#cython: boundscheck=False
-#cython: cdivision=True
-#cython: infertypes=True
-#cython: initializedcheck=False
-#cython: nonecheck=False
-#cython: wraparound=False
-#distutils: extra_link_args = ['-lgsl', '-lgslcblas']
-#distutils: extra_compile_args = -Wno-unused-function -Wno-unneeded-internal-declaration
-
+# distutils: language = c++
+# distutils: libraries = stdc++
+# distutils: library_dirs = /usr/local/lib
+# distutils: sources = csample.cpp
+# distutils: extra_compile_args = -O3 -w -std=c++0x -fopenmp
+# distutils: extra_link_args = -fopenmp
+# cython: boundscheck = False
+# cython: wraparound = False
+# cython: cdivision = True
 
 cdef extern from "gsl/gsl_rng.h" nogil:
     ctypedef struct gsl_rng_type:
