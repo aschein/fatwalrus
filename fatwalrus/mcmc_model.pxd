@@ -23,6 +23,9 @@ cdef extern from "gsl/gsl_rng.h" nogil:
 cdef class MCMCModel:
     cdef:
         gsl_rng *rng
+        int total_itns, print_every
+        dict param_list
+
     cdef list _get_variables(self)
     cdef void _generate_state(self)
     cdef void _generate_data(self)

@@ -15,6 +15,18 @@ import scipy.stats as st
 from numpy.random import randint
 from pp_plot import pp_plot
 from copy import deepcopy
+from time import time
+from contextlib import contextmanager
+
+
+
+@contextmanager
+def timeit_context(name):
+    startTime = time()
+    yield
+    elapsedTime = time() - startTime
+    print '%3.4fms: %s' % (elapsedTime * 1000, name)
+
 
 cdef class MCMCModel:
 
@@ -26,12 +38,41 @@ cdef class MCMCModel:
             seed = randint(0, sys.maxint) & 0xFFFFFFFF
         gsl_rng_set(self.rng, seed)
 
+        self.total_itns = 0
+        self.print_every = 10
+        self.param_list = {'seed': seed}
+
     def __dealloc__(self):
         """
         Free GSL random number generator.
         """
 
         gsl_rng_free(self.rng)
+
+    def get_total_itns(self):
+        """
+        Return the number of itns the model has done inference for.
+        """
+        
+        return self.total_itns
+
+    def get_params(self):
+        """
+        Get a copy of the initialization params.
+
+        Inheriting objects should add params to the param_list, e.g.:
+
+        cdef class ExampleModel(MCMCModel):
+            
+            def __init__(self, double alpha=1., object seed=None):
+                
+                super(ExampleModel, self).__init__(seed)
+                
+                self.param_list['alpha'] = alpha
+
+                ...
+        """
+        return deepcopy(self.param_list)
 
     cdef list _get_variables(self):
         """
@@ -81,8 +122,10 @@ cdef class MCMCModel:
         """
         Print internal state.
         """
+        cdef:
+            double t
 
-        pass
+        print 'ITERATION %d\n' % self.total_itns
 
     cdef void _update(self, int num_itns, int verbose, dict burnin):
         """
@@ -95,11 +138,14 @@ cdef class MCMCModel:
         for n in range(num_itns):
             for k, _, update_func in self._get_variables():
                 if k not in burnin.keys() or n >= burnin[k]:
-                    update_func(self)
-            if verbose != 0:
-                print n
-                if (n + 1) % 1 == 0:
-                    self._print_state()
+                    if (verbose == 1) and ((n + 1) % self.print_every == 0):
+                        with timeit_context('sampling %s' % k):
+                            update_func(self)
+                    else:
+                        update_func(self)
+            self.total_itns += 1
+            if (verbose == 1) and ((n + 1) % self.print_every == 0):
+                self._print_state()
 
     cpdef void update(self, int num_itns, int verbose, dict burnin={}):
         """
@@ -152,7 +198,6 @@ cdef class MCMCModel:
                     rev[k][f] = np.empty(num_samples)
 
         if method == 'schein':
-            self._init_state()
             for n in range(num_samples):
                 self._generate_state()
                 self._generate_data()
@@ -161,11 +206,9 @@ cdef class MCMCModel:
                 self._update(10, 0, burnin)
                 self._generate_data()
                 self._calc_funcs(n, var_funcs, rev)
-
                 if n % 500 == 0:
                     print n
         else:
-            self._init_state()
             for n in range(num_samples):
                 self._generate_state()
                 self._generate_data()

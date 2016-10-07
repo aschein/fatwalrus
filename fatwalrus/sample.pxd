@@ -9,7 +9,7 @@
 #distutils: extra_compile_args = -Wno-unused-function -Wno-unneeded-internal-declaration
 
 cimport numpy as np
-from libc.math cimport log, log1p, exp, M_E, tgamma
+from libc.math cimport log, log1p, exp, M_E, tgamma, sqrt
 
 cdef extern from "gsl/gsl_rng.h" nogil:
     ctypedef struct gsl_rng_type:
@@ -31,6 +31,7 @@ cdef extern from "gsl/gsl_randist.h" nogil:
                              unsigned int N,
                              const double p[],
                              unsigned int n[])
+    double gsl_ran_ugaussian (const gsl_rng * r)
 
 DEF EPS = 1e-300
 
@@ -130,6 +131,7 @@ cdef inline double _sample_lngamma_small_shape(gsl_rng * rng,
         if (lnh - lneta) > log(gsl_rng_uniform(rng)):
             return log(b) - z / a
 
+
 cdef inline double _sample_lnbeta(gsl_rng * rng, double a, double b) nogil:
     """
     Sample a log-Beta by sampling 2 log-Gamma random variates.
@@ -144,6 +146,7 @@ cdef inline double _sample_lnbeta(gsl_rng * rng, double a, double b) nogil:
 
     lng1 = _sample_lngamma(rng, a, 1.)
     lng2 = _sample_lngamma(rng, b, 1.)
+
     c = lng1 if lng1 > lng2 else lng2
     lse = c + log(exp(lng1 - c) + exp(lng2 - c))  # logsumexp
 
@@ -294,7 +297,7 @@ cdef inline int _sample_crt(gsl_rng * rng, int m, double r) nogil:
         double u, p
 
     if m < 0 or r < 0:
-        return -1
+        return -1  # represents an error
 
     if m == 0:
         return 0
@@ -366,7 +369,7 @@ cdef inline int _sample_sumlog(gsl_rng * rng, int n, double p) nogil:
     return out
 
 
-cdef inline int _sample_truncated_poisson(gsl_rng * rng, double mu) nogil:
+cdef inline int _sample_trunc_poisson(gsl_rng * rng, double mu) nogil:
     """
     Sample a truncated Poisson random variable as described by Zhou (2015) [1].
 
@@ -429,7 +432,7 @@ cdef class Sampler:
     cpdef int crt(self, int m, double r)
     cpdef int sumcrt(self, int[::1] M, double[::1] R)
     cpdef int sumlog(self, int n, double p)
-    cpdef int truncated_poisson(self, double mu)
+    cpdef int trunc_poisson(self, double mu)
     cpdef void multinomial(self,
                            unsigned int N,
                            double[::1] p,

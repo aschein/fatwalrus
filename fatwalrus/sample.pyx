@@ -12,7 +12,6 @@ import sys
 from numpy.random import randint
 from bessel cimport _sample as _sample_bessel
 
-
 cdef class Sampler:
     """
     Wrapper for a gsl_rng object that exposes all sampling methods to Python.
@@ -67,8 +66,8 @@ cdef class Sampler:
     cpdef int sumlog(self, int n, double p):
         return _sample_sumlog(self.rng, n, p)
 
-    cpdef int truncated_poisson(self, double mu):
-        return _sample_truncated_poisson(self.rng, mu)
+    cpdef int trunc_poisson(self, double mu):
+        return _sample_trunc_poisson(self.rng, mu)
 
     cpdef void multinomial(self, unsigned int N, double[::1] p, unsigned int[::1] out):
         _sample_multinomial(self.rng, N, p, out)

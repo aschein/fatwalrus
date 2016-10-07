@@ -13,7 +13,6 @@ import numpy as np
 cimport numpy as np
 from libc.math cimport exp, log, log1p, floor, lround, lgamma, sqrt, sin, M_PI, hypot, isnan, isinf, NAN, abs
 
-
 cdef extern from "gsl/gsl_rng.h" nogil:
     ctypedef struct gsl_rng_type:
         pass
@@ -169,6 +168,9 @@ cdef inline int _sample(gsl_rng * rng, double v, double a) nogil:
         double[CACHE_SIZE] cache
 
     cache[0] = NAN
+
+    if (v <= -1) or (a <= 0):
+        return -1  # represents an error
 
     if (v == 0 and a <= 10) or (v == 1 and 4.5 <= a <= 9.5):
         return _double_poisson(rng, <int> v, a)
