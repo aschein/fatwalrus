@@ -1,7 +1,6 @@
 # distutils: language = c++
 # distutils: libraries = stdc++
 # distutils: library_dirs = /usr/local/lib
-# distutils: sources = csample.cpp
 # distutils: extra_compile_args = -O3 -w -std=c++0x -fopenmp
 # distutils: extra_link_args = -fopenmp
 # cython: boundscheck = False
