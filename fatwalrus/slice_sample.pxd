@@ -5,7 +5,7 @@
 #cython: initializedcheck=False
 #cython: nonecheck=False
 #cython: wraparound=False
-#distutils: language = c++
+#distutils: language = c
 #distutils: extra_link_args = ['-lgsl', '-lgslcblas']
 #distutils: extra_compile_args = -Wno-unused-function -Wno-unneeded-internal-declaration
 
