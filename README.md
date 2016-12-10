@@ -1,5 +1,6 @@
 # fatwalrus
 Code for laying out on the rocks all day with the homies and doing Bayesian statistics.
+
 ![alt tag](https://github.com/aschein/fatwalrus/blob/master/IMG_7763.jpg)
 
 ## What's included:
