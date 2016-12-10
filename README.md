@@ -1,10 +1,5 @@
 # fatwalrus
 Code for laying out on the rocks all day with the homies.
-
-
-![alt tag](https://github.com/aschein/fatwalrus/blob/master/IMG_7763.jpg)
-
-
 ## What's included:
 
 * [pgds.pyx](https://github.com/aschein/pgds/blob/master/src/pgds.pyx): The main code file.  Implements Gibbs sampling inference for PGDS.
@@ -22,3 +17,8 @@ Code for laying out on the rocks all day with the homies.
 * scikit-learn
 * cython
 * GSL
+
+![alt tag](https://github.com/aschein/fatwalrus/blob/master/IMG_7763.jpg)
+
+
+
