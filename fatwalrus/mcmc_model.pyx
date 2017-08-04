@@ -20,7 +20,6 @@ from time import time
 from contextlib import contextmanager
 
 
-
 @contextmanager
 def timeit_context(name):
     startTime = time()

@@ -49,6 +49,14 @@ cpdef int mode(double v, double a) nogil:
 cpdef double mean(double v, double a) nogil:
     return _mean(v, a)
 
+cpdef void vec_mean(double[::1] v_N, double[::1] a_N, double[::1] out_N) nogil:
+    cdef:
+        int N, n
+
+    N = a_N.shape[0]
+    for n in range(N):
+        out_N[n] = _mean(v_N[n], a_N[n])
+
 cpdef double mean_naive(double v, double a) nogil:
     return _mean_naive(v, a)
 

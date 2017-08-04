@@ -92,6 +92,8 @@ cdef inline int _mode(double v, double a) nogil:
 
 cpdef double mean(double v, double a) nogil
 
+cpdef void vec_mean(double[::1] v_N, double[::1] a_N, double[::1] out_N) nogil
+
 cdef inline double _mean(double v, double a) nogil:
     return 0.5 * a * _quotient(v, a)
 
@@ -170,13 +172,14 @@ cdef inline int _sample(gsl_rng * rng, double v, double a) nogil:
 
     cache[0] = NAN
 
-    if (v <= -1) or (a <= 0):
+    if (v < -1) or (a <= 0):
         return -1  # represents an error
 
-    if (v == 0 and a <= 10) or (v == 1 and 4.5 <= a <= 9.5):
+    if (v == 0 and a <= 10) or (v == 1 and 4.5 <= a <= 9.5) or (v == -1 and 0.1 <= a <= 20):
+        # last condition represents truncated Bessel
         return _double_poisson(rng, <int> v, a)
 
-    elif v < 0:
+    elif (-1 < v) and (v < 0):
         return _rejection_1(rng, v, a, cache)
 
     else:
@@ -186,7 +189,13 @@ cdef inline int _sample(gsl_rng * rng, double v, double a) nogil:
         z = cache[2] = _logpmf_norm(v, a)
 
         if isinf(z) or isnan(z):
-            return _rejection_2(rng, v, a, cache)
+            if v == -1:
+                return -1
+            else:
+                return _rejection_2(rng, v, a, cache)
+
+        if v == -1:  # truncated Bessel
+            return _sample_from_pmf(rng, v, a, cache)
 
         if (a < 40) or (a < v and v <= 70):
             y = _sample_from_pmf(rng, v, a, cache)
@@ -240,18 +249,21 @@ cdef inline int _sample_from_pmf(gsl_rng * rng,
     c = 2 * log(a) - log(4)
 
     for i in range(m):
-        y = m - i - 1
-        g += log(y + 1) + log(y + v + 1) - c
-        p = _log1pexp(g - s)
+        y = m + i + 1
+        f += c - log(y) - log(y + v)
+        p = _log1pexp(f - s)
         s += p
         if s >= r:
             return y
         if p < TOL:
             return -1
 
-        y = m + i + 1
-        f += c - log(y) - log(y + v)
-        p = _log1pexp(f - s)
+        y = m - i - 1
+        if v == -1 and y == 0:  # truncated Bessel
+            continue
+
+        g += log(y + 1) + log(y + v + 1) - c
+        p = _log1pexp(g - s)
         s += p
         if s >= r:
             return y
